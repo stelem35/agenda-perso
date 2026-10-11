@@ -1,0 +1,8 @@
+# Fichiers de travail privés : ne jamais publier
+suivi-projet-agenda-abonnements.md
+cahier-des-charges-agenda.md
+README.md
+# Ancien déploiement Netlify
+deploy-netlify.sh
+.deployignore
+.netlify/
