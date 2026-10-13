@@ -36,8 +36,10 @@ const ic = {
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.hidden = false;
+  // Durée proportionnelle à la longueur du message (de 3 s à 9 s) ; un appui le ferme plus tôt
+  t.onclick = () => { t.hidden = true; };
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => (t.hidden = true), 2600);
+  toast.t = setTimeout(() => (t.hidden = true), Math.min(9000, Math.max(3000, msg.length * 70)));
 }
 function openSheet(html) {
   $('#sheet-body').innerHTML = html;
