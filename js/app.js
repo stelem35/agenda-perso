@@ -291,7 +291,7 @@ function countdown(d) {
 function itemHtml(e, right) {
   const k = remember(e);
   return `<button class="item" style="--c:var(--c-${e.cat})" data-ev="${k}">
-    <span class="main"><b>${esc(e.title)}</b><small>${U.cap(U.fmtDayShort(e.start))}${e.allDay ? '' : ' · ' + U.fmtTime(e.start)} · ${esc(e.calName)}</small></span>${right}</button>`;
+    <span class="main"><b>${esc(e.title)}</b><small>${U.cap(U.fmtDayShortY(e.start))}${e.allDay ? '' : ' · ' + U.fmtTime(e.start)} · ${esc(e.calName)}</small></span>${right}</button>`;
 }
 const cdHtml = e => `<span class="cd${U.daysBetween(new Date(), e.start) <= 7 ? ' urgent' : ''}">${countdown(e.start)}</span>`;
 async function renderFav(id) {
@@ -378,8 +378,8 @@ function untilValue(dateStr, allDay) {
 
 function openDetail(ev) {
   const when = ev.allDay
-    ? U.cap(U.fmtDayLong(ev.start))
-    : `${U.cap(U.fmtDayLong(ev.start))}<br>${U.fmtTime(ev.start)} – ${U.fmtTime(ev.end)}`;
+    ? U.cap(U.fmtDayLongY(ev.start))
+    : `${U.cap(U.fmtDayLongY(ev.start))}<br>${U.fmtTime(ev.start)} – ${U.fmtTime(ev.end)}`;
   const addr = ev.location.replace(/\s+/g, ' ').trim();
   // Le lieu peut être un lien Maps déjà prêt (partage depuis l'app Maps) : on l'ouvre tel quel, sans le chercher comme une adresse
   const isUrl = /^https?:\/\/\S+$/i.test(addr);

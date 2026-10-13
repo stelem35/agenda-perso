@@ -14,6 +14,9 @@ export const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); retur
 const fr = o => new Intl.DateTimeFormat('fr-FR', o);
 export const fmtDayLong = d => fr({ weekday: 'long', day: 'numeric', month: 'long' }).format(d);
 export const fmtDayShort = d => fr({ weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+// Avec l'année : détail d'un événement, résultats de recherche, favoris et échéances (qui peuvent tomber d'une année à l'autre)
+export const fmtDayLongY = d => fr({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+export const fmtDayShortY = d => fr({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 export const fmtMonth = d => fr({ month: 'long', year: 'numeric' }).format(d);
 export const fmtWeekday3 = d => fr({ weekday: 'short' }).format(d).replace('.', '');
 export const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
