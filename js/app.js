@@ -60,6 +60,7 @@ function setHead({ title, sub = '', nav = true, extra = '' }) {
 /* ---------- Calendriers et événements ---------- */
 async function loadCalendars() {
   const items = await G.listCalendars();
+  G.setHint(items.find(c => c.primary)?.id); // identifiant du calendrier principal = adresse Google, pour le renouvellement silencieux
   state.calendars = items.map(c => {
     const name = c.summaryOverride || c.summary;
     return {
@@ -157,7 +158,7 @@ async function render() {
     await fn(id);
   } catch (e) {
     if (id !== state.renderId) return;
-    if (e instanceof G.AuthError) return showLogin('Session expirée, reconnecte-toi.');
+    if (e instanceof G.AuthError) return reconnect('Session expirée, reconnecte-toi.');
     $('#view').innerHTML = `<div class="empty">Impossible de charger l'agenda.<br>${esc(e.message)}<br><button data-act="retry">Réessayer</button></div>`;
   }
 }
@@ -336,7 +337,7 @@ async function runSearch(q) {
     const all = [...upcoming, ...past];
     box.innerHTML = all.length ? all.map(e => itemHtml(e, '')).join('') : '<div class="empty">Aucun résultat.</div>';
   } catch (e) {
-    if (e instanceof G.AuthError) return showLogin('Session expirée, reconnecte-toi.');
+    if (e instanceof G.AuthError) return reconnect('Session expirée, reconnecte-toi.');
     box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
@@ -672,13 +673,19 @@ $('#view').addEventListener('touchend', e => {
   if (Math.abs(dx) > 70 && Math.abs(dy) < 45) shift(dx < 0 ? 1 : -1);
 }, { passive: true });
 
-// Au retour sur l'app, on rafraîchit
+// Session expirée : renouvellement silencieux (redirection Google) si possible, sinon bouton de connexion
+function reconnect(msg) {
+  if (G.wasSignedIn() && G.canTrySilent()) { G.markSilentTry(); G.redirectSignIn(); return; }
+  showLogin(msg);
+}
+
+// Au retour sur l'app, on rafraîchit (ou on renouvelle la connexion si le jeton a expiré entre-temps)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && G.isSignedIn() && $('#sheet').hidden && $('#login').hidden) {
-    clearCache();
-    if (U.sameDay(state.date, new Date(Date.now() - 864e5))) state.date = U.startOfDay(new Date());
-    render();
-  }
+  if (document.visibilityState !== 'visible' || !$('#sheet').hidden || !$('#login').hidden) return;
+  if (!G.isSignedIn()) { if (G.wasSignedIn()) reconnect('Session expirée, reconnecte-toi.'); return; }
+  clearCache();
+  if (U.sameDay(state.date, new Date(Date.now() - 864e5))) state.date = U.startOfDay(new Date());
+  render();
 });
 
 /* ---------- Connexion et démarrage ---------- */
@@ -703,11 +710,11 @@ $('#login-btn').onclick = async () => {
 (async function init() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (!G.isConfigured()) return showLogin();
-  if (G.loadStoredToken() || G.wasSignedIn()) {
-    try {
-      if (!G.isSignedIn()) await G.signIn(true);
-      return await start();
-    } catch { /* retombe sur l'écran de connexion */ }
+  const back = G.consumeRedirect(); // retour de la page Google après un renouvellement silencieux
+  if (G.loadStoredToken()) {
+    try { return await start(); } catch { /* retombe sur l'écran de connexion */ }
+  } else if (G.wasSignedIn() && !back) {
+    return reconnect(); // jeton expiré : on tente de le renouveler sans rien demander
   }
-  showLogin();
+  showLogin(back?.error ? 'Connexion à renouveler : appuie sur le bouton.' : undefined);
 })();
