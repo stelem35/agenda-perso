@@ -1,5 +1,5 @@
 // Service worker minimal : l'app s'ouvre même hors ligne (les données Google, elles, nécessitent le réseau).
-const CACHE = 'agenda-v1';
+const CACHE = 'agenda-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/config.js', 'js/util.js', 'js/categories.js', 'js/google.js', 'js/weather.js',

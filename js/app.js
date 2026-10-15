@@ -60,8 +60,37 @@ function setHead({ title, sub = '', nav = true, extra = '' }) {
 }
 
 /* ---------- Calendriers et événements ---------- */
+// Copie locale (localStorage) des calendriers et événements : consultation hors ligne, lecture seule
+const OFF_KEY = 'agenda.offline';
+const offline = { on: false };
+function offRead() { try { return JSON.parse(localStorage.getItem(OFF_KEY)) || { cals: null, ev: {} }; } catch { return { cals: null, ev: {} }; } }
+function offWrite(patch) {
+  try {
+    const d = offRead(); patch(d);
+    const keys = Object.keys(d.ev);
+    if (keys.length > 80) keys.sort((a, b) => d.ev[a].t - d.ev[b].t).slice(0, keys.length - 80).forEach(k => delete d.ev[k]);
+    localStorage.setItem(OFF_KEY, JSON.stringify(d));
+  } catch { /* stockage plein ou indisponible */ }
+}
+const revive = list => list.map(e => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+function showOfflineBanner(on) {
+  offline.on = on;
+  let b = document.getElementById('offline-note');
+  if (!on) return b?.remove();
+  if (!b) { b = document.createElement('div'); b.id = 'offline-note'; b.style.cssText = 'position:fixed;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));padding:8px 12px;background:#92400e;color:#fff;text-align:center;font-size:14px;z-index:99'; document.body.appendChild(b); }
+  b.textContent = 'Hors ligne : consultation seule (dernières données connues)';
+}
+window.addEventListener('online', () => { if (offline.on) { showOfflineBanner(false); if (G.isSignedIn()) { clearCache(); render(); } else if (G.wasSignedIn()) reconnect(); } });
+
 async function loadCalendars() {
-  const items = await G.listCalendars();
+  let items;
+  try { items = await G.listCalendars(); }
+  catch (e) {
+    const saved = offRead().cals;
+    if (e instanceof G.AuthError || !saved) throw e;
+    state.calendars = saved; showOfflineBanner(true); return;
+  }
+  showOfflineBanner(false);
   G.setHint(items.find(c => c.primary)?.id); // identifiant du calendrier principal = adresse Google, pour le renouvellement silencieux
   state.calendars = items.map(c => {
     const name = c.summaryOverride || c.summary;
@@ -73,6 +102,7 @@ async function loadCalendars() {
       echeances: name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes('echeance'),
     };
   });
+  offWrite(d => { d.cals = state.calendars; });
 }
 const visibleCals = () => state.calendars.filter(c => !prefs.hidden.includes(c.id));
 
@@ -117,9 +147,12 @@ async function perCalendar(fetcher, key, cals = visibleCals()) {
     try {
       const v = (await fetcher(cal)).map(r => normalize(r, cal)).filter(Boolean);
       cache.set(k, { t: Date.now(), v });
+      offWrite(d => { d.ev[k] = { t: Date.now(), v }; });
       return v;
     } catch (e) {
       if (e instanceof G.AuthError) throw e;
+      const saved = offRead().ev[k];
+      if (saved) { if (!navigator.onLine) showOfflineBanner(true); return revive(saved.v); }
       return []; // un calendrier en échec n'empêche pas d'afficher les autres
     }
   }));
@@ -677,6 +710,7 @@ $('#view').addEventListener('touchend', e => {
 
 // Session expirée : renouvellement silencieux (redirection Google) si possible, sinon bouton de connexion
 function reconnect(msg) {
+  if (!navigator.onLine) return;
   if (G.wasSignedIn() && G.canTrySilent()) { G.markSilentTry(); G.redirectSignIn(); return; }
   showLogin(msg);
 }
@@ -684,6 +718,7 @@ function reconnect(msg) {
 // Au retour sur l'app, on rafraîchit (ou on renouvelle la connexion si le jeton a expiré entre-temps)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden || !$('#login').hidden) return;
+  if (!navigator.onLine) return;
   if (!G.isSignedIn()) { if (G.wasSignedIn()) reconnect('Session expirée, reconnecte-toi.'); return; }
   clearCache();
   if (U.sameDay(state.date, new Date(Date.now() - 864e5))) state.date = U.startOfDay(new Date());
@@ -713,6 +748,9 @@ $('#login-btn').onclick = async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (!G.isConfigured()) return showLogin();
   const back = G.consumeRedirect(); // retour de la page Google après un renouvellement silencieux
+  if (!navigator.onLine && offRead().cals) { // hors ligne : on affiche la dernière copie, sans demander de connexion
+    state.calendars = offRead().cals; $('#login').hidden = true; showOfflineBanner(true); return render();
+  }
   if (G.loadStoredToken()) {
     try { return await start(); } catch { /* retombe sur l'écran de connexion */ }
   } else if (G.wasSignedIn() && !back) {
